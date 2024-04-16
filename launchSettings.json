@@ -1,0 +1,15 @@
+{
+  "profiles": {
+    "Docker Compose": {
+      "commandName": "DockerCompose",
+      "commandVersion": "1.0",
+      "serviceActions": {
+        "webapi": "StartDebugging",
+        "consumer": "StartDebugging",
+        "hostedconsumer": "StartDebugging",
+        "rpcserver": "StartDebugging",
+        "consumermasstransit": "StartDebugging"
+      }
+    }
+  }
+}

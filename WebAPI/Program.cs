@@ -1,9 +1,47 @@
-var builder = WebApplication.CreateBuilder(args);
+using MassTransit;
+using MassTransit.Transports;
 
-// Add services to the container.
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+using Microsoft.AspNetCore.Http.HttpResults;
+
+using RabbitMQ.Client;
+
+using Serilog;
+
+using SharedClassLibrary;
+
+using System.Text;
+
+using WebAPI;
+
+var builder = WebApplication.CreateBuilder(args);
+builder.Configuration.AddEnvironmentVariables();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+builder.Logging.ClearProviders();
+var logger = new LoggerConfiguration().MinimumLevel.Information().WriteTo.Console().CreateLogger();
+builder.Logging.AddSerilog(logger);
+
+builder.Services.AddSingleton<IRabbitMqProducer, RabbitMqProducer>();
+
+builder.Services.AddMassTransit(x =>
+{
+    x.AddDelayedMessageScheduler();
+    x.SetKebabCaseEndpointNameFormatter();
+    x.UsingRabbitMq((context, cfg) =>
+    {
+        cfg.Host(
+        Environment.GetEnvironmentVariable("RABBIT_HOST"),
+        5672,
+        "/", h =>
+        {
+            h.Username(Environment.GetEnvironmentVariable("RABBIT_USER"));
+            h.Password(Environment.GetEnvironmentVariable("RABBIT_PASS"));
+            h.Heartbeat(30);
+        });
+
+    });
+});
 
 var app = builder.Build();
 
@@ -16,29 +54,38 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-var summaries = new[]
+app.MapPost("/rabbit", (RabbitMessageRouting msg, IRabbitMqProducer rabbit) =>
 {
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
-
-app.MapGet("/weatherforecast", () =>
-{
-    var forecast = Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
+    rabbit.SendTextMessage(msg.Body, msg.Exchange, msg.RoutingKey);
+    return "Message sended";
 })
-.WithName("GetWeatherForecast")
+.WithName("SendRabbitMessage")
+.WithOpenApi();
+
+app.MapPost("/rabbit/rpc", async (RabbitMessage msg, IRabbitMqProducer rabbit) =>
+{
+    var res = await rabbit.CallRpc(msg.Body);
+    return res;
+})
+.WithName("SendRabbitRpc")
+.WithOpenApi();
+
+app.MapPost("/masstransit", async (MassTransitMessageDto dto, IPublishEndpoint pub) =>
+{
+    await pub.Publish<MessageCreated>(new
+    {
+        Id = 1,
+        dto.From,
+        dto.To,
+        dto.Message
+    });
+    return "Message sended";
+})
+.WithName("SendMessTransitMessage")
 .WithOpenApi();
 
 app.Run();
 
-internal record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
+internal record RabbitMessageRouting(string Exchange = "", string RoutingKey = "", string Body = "") {  }
+internal record RabbitMessage(string Body = "") { }
+internal record MassTransitMessageDto(string From = "", string To = "", string Message = "") { }

@@ -1,0 +1,178 @@
+version: '3.4'
+
+services:
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: rabbitmq
+    hostname: rabbitmq
+    restart: always
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBIT_USER}
+      - RABBITMQ_DEFAULT_PASS=${RABBIT_PASS}
+      - RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS=-rabbit disk_free_limit 2147483648
+    volumes:
+      - ./rabbitmq:/var/lib/rabbitmq
+    ports:
+      - 15672:15672
+    logging:
+      driver: none
+
+  webapi:
+    image: ${DOCKER_REGISTRY-}webapi
+    container_name: webapi
+    hostname: webapi
+    build:
+      context: .
+      dockerfile: WebAPI/Dockerfile
+    env_file:
+      - .env
+    ports:
+      - 8081:8081
+      - 8080:8080
+    depends_on:
+      - rabbitmq
+
+  consumer_hello:
+    image: ${DOCKER_REGISTRY-}consumer
+    container_name: consumer_hello
+    build:
+      context: .
+      dockerfile: Consumer/Dockerfile
+    env_file:
+      - .env
+    environment:
+      - RABBIT_QUEUE=hello
+    depends_on:
+      - rabbitmq
+   
+  consumer_task_1:
+    image: ${DOCKER_REGISTRY-}consumer
+    container_name: consumer_task_1
+    build:
+      context: .
+      dockerfile: Consumer/Dockerfile
+    env_file:
+      - .env
+    environment:
+      - RABBIT_QUEUE=task_queue
+    depends_on:
+      - rabbitmq
+  
+  consumer_task_2:
+    image: ${DOCKER_REGISTRY-}consumer
+    container_name: consumer_task_2
+    build:
+      context: .
+      dockerfile: Consumer/Dockerfile
+    env_file:
+      - .env
+    environment:
+      - RABBIT_QUEUE=task_queue
+    depends_on:
+      - rabbitmq
+
+  consumer_logs:
+    image: ${DOCKER_REGISTRY-}consumer
+    container_name: consumer_logs
+    build:
+      context: .
+      dockerfile: Consumer/Dockerfile
+    env_file:
+      - .env
+    environment:
+      - RABBIT_EXCHANGE=logs
+    depends_on:
+      - rabbitmq
+
+  consumer_logs_info:
+    image: ${DOCKER_REGISTRY-}consumer
+    container_name: consumer_logs_info
+    build:
+      context: .
+      dockerfile: Consumer/Dockerfile
+    env_file:
+      - .env
+    environment:
+      - RABBIT_EXCHANGE=direct_logs
+      - RABBIT_ROUTING=info
+    depends_on:
+      - rabbitmq 
+  
+  consumer_logs_error:
+    image: ${DOCKER_REGISTRY-}consumer
+    container_name: consumer_logs_error
+    build:
+      context: .
+      dockerfile: Consumer/Dockerfile
+    env_file:
+      - .env
+    environment:
+      - RABBIT_EXCHANGE=direct_logs
+      - RABBIT_ROUTING=error
+    depends_on:
+      - rabbitmq 
+
+  consumer_topic_any:
+    image: ${DOCKER_REGISTRY-}consumer
+    container_name: consumer_topic_any
+    build:
+      context: .
+      dockerfile: Consumer/Dockerfile
+    env_file:
+      - .env
+    environment:
+      - RABBIT_EXCHANGE=topic_logs
+      - RABBIT_ROUTING=#
+    depends_on:
+      - rabbitmq  
+
+  consumer_topic_api:
+    image: ${DOCKER_REGISTRY-}consumer
+    container_name: consumer_topic_api
+    build:
+      context: .
+      dockerfile: Consumer/Dockerfile
+    env_file:
+      - .env
+    environment:
+      - RABBIT_EXCHANGE=topic_logs
+      - RABBIT_ROUTING=api.*
+    depends_on:
+      - rabbitmq   
+
+  consumer_topic_error:
+    image: ${DOCKER_REGISTRY-}consumer
+    container_name: consumer_topic_error
+    build:
+      context: .
+      dockerfile: Consumer/Dockerfile
+    env_file:
+      - .env
+    environment:
+      - RABBIT_EXCHANGE=topic_logs
+      - RABBIT_ROUTING=*.error
+    depends_on:
+      - rabbitmq  
+
+  rpcserver:
+    image: ${DOCKER_REGISTRY-}rpcserver
+    container_name: consumer_rpc
+    build:
+      context: .
+      dockerfile: ConsumerAnswer/Dockerfile
+    env_file:
+      - .env
+    depends_on:
+      - rabbitmq
+
+  consumermasstransit:
+    image: ${DOCKER_REGISTRY-}consumermasstransit
+    container_name: consumer_masstransit
+    build:
+      context: .
+      dockerfile: ConsumerMassTransit/Dockerfile
+    env_file:
+      - .env
+    depends_on:
+      - rabbitmq
+

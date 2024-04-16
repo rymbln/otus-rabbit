@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "ConsumerMassTransit": {
+      "commandName": "Project"
+    },
+    "Container (Dockerfile)": {
+      "commandName": "Docker"
+    }
+  }
+}
